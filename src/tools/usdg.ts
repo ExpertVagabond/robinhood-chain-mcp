@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { Register } from "../types.js";
-import { RpcClient, formatUnits, fromHex, json } from "../rpc.js";
+import { RpcClient, TransportError, formatUnits, fromHex, json } from "../rpc.js";
 import {
   KNOWN_ASSETS,
   SELECTORS,
@@ -215,6 +215,11 @@ export function registerUsdgTools(register: Register, rpc: RpcClient) {
   );
 }
 
+/**
+ * A revert is the signal this probe reads. A transport failure is not -- it is
+ * rethrown, because reporting a rate-limit as "this selector is absent" would turn
+ * an outage into a false capability verdict.
+ */
 async function probeRaw(
   rpc: RpcClient,
   to: string,
@@ -224,6 +229,7 @@ async function probeRaw(
     await rpc.call<string>("eth_call", [{ to, data }, "latest"]);
     return { ok: true };
   } catch (err) {
+    if (err instanceof TransportError) throw err;
     const e = err as { data?: unknown };
     return {
       ok: false,
