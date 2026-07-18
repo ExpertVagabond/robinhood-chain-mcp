@@ -1,0 +1,30 @@
+{
+  "name": "@purplesquirrel/robinhood-chain-mcp",
+  "version": "0.1.0",
+  "description": "MCP server for Robinhood Chain (Arbitrum Orbit L2, chainId 4663) — JSON-RPC reads, explorer-indexed token discovery, EIP-3009/USDG tooling, and unsigned transaction builders. Never holds keys.",
+  "type": "module",
+  "bin": {
+    "robinhood-chain-mcp": "dist/index.js"
+  },
+  "main": "dist/index.js",
+  "files": ["dist", "README.md"],
+  "license": "MIT",
+  "keywords": ["mcp", "robinhood-chain", "arbitrum-orbit", "evm", "eip-3009", "usdg"],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node dist/index.js",
+    "type-check": "tsc --noEmit",
+    "test": "npm run build && node --test test/*.test.ts",
+    "quality": "npm run type-check && npm run test"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.26.0",
+    "viem": "^2.21.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.9.3"
+  }
+}
