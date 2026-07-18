@@ -33,6 +33,8 @@ import { registerNftTools } from "./tools/nft.js";
 import { registerEip3009Tools } from "./tools/eip3009.js";
 import { registerExplorerTools } from "./tools/explorer.js";
 import { registerX402Tools } from "./tools/x402.js";
+import { registerStockTokenTools } from "./tools/stocktokens.js";
+import { registerUniswapTools } from "./tools/uniswap.js";
 
 const network = resolveNetwork();
 const rpc = new RpcClient(network);
@@ -79,6 +81,8 @@ registerNftTools(register, rpc, scout);
 registerEip3009Tools(register, rpc);
 registerExplorerTools(register, rpc, scout);
 registerX402Tools(register, rpc);
+registerStockTokenTools(register, rpc, scout);
+registerUniswapTools(register, rpc);
 
 async function main() {
   const transport = new StdioServerTransport();

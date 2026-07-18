@@ -1,5 +1,18 @@
 import type { NetworkConfig } from "./networks.js";
 
+/**
+ * A transport-level failure (HTTP status), as opposed to an RpcError, which is the
+ * chain answering. Callers that interpret errors as negative answers -- "this
+ * function does not exist", "this is not a stock token" -- MUST NOT swallow this:
+ * a rate-limit is not a fact about a contract.
+ */
+export class TransportError extends Error {
+  constructor(public status: number, message: string) {
+    super(message);
+    this.name = "TransportError";
+  }
+}
+
 export class RpcError extends Error {
   constructor(
     public code: number,
@@ -20,28 +33,50 @@ export class RpcClient {
   }
 
   async call<T = unknown>(method: string, params: unknown[] = []): Promise<T> {
-    const res = await fetch(this.network.rpcUrl, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        // The Robinhood RPC rejects some default client User-Agents with HTTP 403
-        // (Node's urllib UA is refused outright), so set an explicit one.
-        "user-agent": "robinhood-chain-mcp",
-      },
-      body: JSON.stringify({ jsonrpc: "2.0", id: ++id, method, params }),
-      signal: AbortSignal.timeout(30_000),
-    });
-    if (!res.ok) {
-      throw new Error(`HTTP ${res.status} from ${this.network.rpcUrl}`);
+    // The public RPC rate-limits bursts with HTTP 429. Retry those (and 5xx) with
+    // backoff; never retry 4xx, which are our fault and will fail identically.
+    // This matters beyond convenience: callers that treat any thrown error as a
+    // negative answer would otherwise report a rate-limit as fact about a contract.
+    let lastStatus = 0;
+    for (let attempt = 0; attempt < 4; attempt++) {
+      const res = await fetch(this.network.rpcUrl, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          // The Robinhood RPC rejects some default client User-Agents with HTTP 403
+          // (Node's urllib UA is refused outright), so set an explicit one.
+          "user-agent": "robinhood-chain-mcp",
+        },
+        body: JSON.stringify({ jsonrpc: "2.0", id: ++id, method, params }),
+        signal: AbortSignal.timeout(30_000),
+      });
+
+      if (res.ok) {
+        const body = (await res.json()) as {
+          result?: T;
+          error?: { code: number; message: string; data?: unknown };
+        };
+        if (body.error) {
+          throw new RpcError(body.error.code, body.error.message, body.error.data);
+        }
+        return body.result as T;
+      }
+
+      lastStatus = res.status;
+      const retryable = res.status === 429 || res.status >= 500;
+      if (!retryable || attempt === 3) break;
+
+      const retryAfter = Number(res.headers.get("retry-after"));
+      const delay = Number.isFinite(retryAfter) && retryAfter > 0
+        ? retryAfter * 1000
+        : 300 * 2 ** attempt;
+      await new Promise((r) => setTimeout(r, delay));
     }
-    const body = (await res.json()) as {
-      result?: T;
-      error?: { code: number; message: string; data?: unknown };
-    };
-    if (body.error) {
-      throw new RpcError(body.error.code, body.error.message, body.error.data);
-    }
-    return body.result as T;
+    throw new TransportError(
+      lastStatus,
+      `HTTP ${lastStatus} from ${this.network.rpcUrl}` +
+        (lastStatus === 429 ? " (rate limited; retried 4x)" : ""),
+    );
   }
 }
 

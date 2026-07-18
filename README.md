@@ -2,7 +2,7 @@
 
 MCP server for **Robinhood Chain** — an Arbitrum Orbit L2 settling on Ethereum, fully EVM-compatible, gas paid in ETH.
 
-**85 tools**: JSON-RPC reads, Arbitrum Orbit precompiles, explorer-indexed discovery, ERC-20/721/1155, EIP-3009/EIP-2612 tooling, x402 payment helpers, offline encoding utilities, and unsigned transaction builders.
+**99 tools**: JSON-RPC reads, Arbitrum Orbit precompiles, explorer-indexed discovery, ERC-20/721/1155, Robinhood Stock Tokens, Uniswap v4, EIP-3009/EIP-2612 tooling, x402 payment helpers, offline encoding utilities, and unsigned transaction builders.
 
 **Read and build only.** This server never holds keys, never signs, and never broadcasts. Transaction and authorization tools return unsigned payloads for external signing.
 
@@ -11,9 +11,9 @@ MCP server for **Robinhood Chain** — an Arbitrum Orbit L2 settling on Ethereum
 | Network | Chain ID | RPC | Explorer |
 | --- | --- | --- | --- |
 | Robinhood Chain | `4663` | `https://rpc.mainnet.chain.robinhood.com/` | robinhoodchain.blockscout.com |
-| Testnet | `46630` | `https://rpc.testnet.chain.robinhood.com/` | none published |
+| Testnet | `46630` | `https://rpc.testnet.chain.robinhood.com/` | explorer.testnet.chain.robinhood.com |
 
-Both chain IDs were confirmed via `eth_chainId` against the live RPCs, not taken from docs. Testnet has no published Blockscout instance (`robinhoodchain-testnet.blockscout.com` 404s), so explorer-backed tools fail there with a clear message rather than an obscure network error.
+Both chain IDs were confirmed via `eth_chainId` against the live RPCs, not taken from docs. The testnet explorer is not in the documentation — it was found in the docs-site JS bundle and verified live. (An earlier guess at `robinhoodchain-testnet.blockscout.com` 404s, which is a good reminder that a guessed hostname returning 404 proves nothing about whether a service exists.)
 
 ```bash
 ROBINHOOD_NETWORK=mainnet|testnet    # default mainnet
@@ -84,6 +84,8 @@ verifyingContract=0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168
 **Explorer (11)** — `address_info`, `address_token_transfers`, `address_internal_transactions`, `contract_source`, `contract_abi`, `explorer_search`, `token_holders`, `token_transfers`, `latest_blocks`, `block_transactions`, `verified_contracts`
 **EIP-3009 / EIP-2612 (12)** — `probe_token_capabilities`, `usdg_info`, `check_authorization`, `build_transfer_authorization`, `verify_authorization_signature`, `build_receive_authorization`, `build_cancel_authorization`, `build_permit`, `build_transfer_authorization_calldata`, `list_eip3009_assets`, `authorization_digest`, `verify_domain_separator`
 **x402 (5)** — `x402_network_id`, `x402_build_payment_requirements`, `x402_build_payment_payload`, `x402_check_facilitator`, `x402_decode_payment_header`
+**Robinhood Stock Tokens (8)** — `verify_stock_token`, `stock_token_info`, `stock_balance`, `check_corporate_action`, `check_address_blocked`, `stock_token_registry`, `list_stock_tokens`, `stock_token_terms`
+**Uniswap v4 (6)** — `uniswap_contracts`, `uniswap_pool_id`, `uniswap_pool_state`, `uniswap_pool_liquidity`, `uniswap_fee_growth`, `uniswap_find_pool`
 **Offline utilities (11)** — `keccak_hash`, `function_selector`, `event_topic`, `checksum_address`, `encode_abi`, `decode_abi`, `decode_calldata`, `to_wei`, `from_wei`, `hex_convert`, `random_nonce`
 
 ### Orbit specifics worth knowing
@@ -91,6 +93,20 @@ verifyingContract=0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168
 `block_number_context` exists because of a real trap: **`eth_blockNumber` and the `block.number` a contract observes are different numbers on this chain** (~13.1M vs ~25.5M at time of writing). A contract reading `block.number` sees the L1 height, advancing at L1 pace. Deadlines computed from it move ~6x slower than you would expect from L2 block times.
 
 `precompile_status` probes each Arbitrum precompile with a real call rather than trusting that a canonical address implies a working precompile. On this chain ArbSys and ArbGasInfo respond; **ArbOwnerPublic and ArbWasm revert, so there is no Stylus support here.** Tools for those are deliberately absent rather than shipped broken.
+
+### Stock Tokens: two traps
+
+**Corporate actions move the multiplier, not balances.** Dividends and splits are applied through an on-chain `uiMultiplier` (ERC-8056) that changes the shares-per-token ratio while raw balances stay fixed. Reading `balanceOf` and presenting it as a share count is wrong after any corporate action — `stock_balance` returns both, and says which to display.
+
+**Ticker squatting is rampant, and there is no registry to check against.** The explorer lists several contracts per ticker; Robinhood's docs warn that a matching ticker proves nothing but publish no canonical list. `uiMultiplier()` turns out to be a reliable discriminator — the genuine tokens implement it, the copies do not. `verify_stock_token("TSLA")` returns the real `Tesla • Robinhood Token` and separately lists the "TSLA CAT" impostors.
+
+The `AccessControlsRegistry` (`0xe10b6f6B...151b00`) was found by calling a token's own `ACCESS_CONTROLLED_REGISTRY()`, not from docs. It gates transfers via `isBlocked(address)` and doubles as the EIP-1967 beacon behind every Stock Token proxy — so it does *not* enumerate them.
+
+### Uniswap v4
+
+Verified on-chain, not from tags: StateView's own `poolManager()` returns the recorded PoolManager, which is self-confirming. **The Quoter that Blockscout tags has no code**, so quoting tools are deliberately omitted rather than shipped broken.
+
+`uniswap_find_pool` sweeps the standard fee tiers, since v4 pools are not enumerable. WETH/USDG is live on all four; the derived price checks out against the explorer's spot ETH price to within 0.4%.
 
 `chain_info` reports `chainIdMatchesConfig` — if an `ROBINHOOD_RPC_URL` override points at a different chain, you find out immediately instead of operating against the wrong network.
 
@@ -110,4 +126,6 @@ The Blockscout client retries 5xx with backoff (public explorer, rate-limited un
 
 v0.1.0. Not published. Read-and-build only; no keys, no signing, no broadcasting.
 
-`test/smoke-all.mjs` calls **every registered tool** against live mainnet and fails the run on any unexpected error — a tool count means nothing if the tools do not work. Current: 82 pass, 3 expected-error (NFT calls against a non-NFT contract), 0 fail.
+`test/smoke-all.mjs` calls **every registered tool** against live mainnet and fails the run on any unexpected error — a tool count means nothing if the tools do not work. Current: 96 pass, 3 expected-error (NFT calls against a non-NFT contract), 0 fail.
+
+The RPC client retries 429/5xx with backoff and distinguishes `TransportError` from `RpcError`. That distinction is load-bearing: capability probes read *reverts* as evidence, so a swallowed rate-limit would be reported as "this selector is absent" or "this is not a stock token" — an outage turned into a false claim about a contract.

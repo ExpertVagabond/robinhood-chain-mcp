@@ -39,9 +39,11 @@ export const NETWORKS: Record<string, NetworkConfig> = {
     chainId: 46630,
     chainIdHex: "0xb626",
     rpcUrl: "https://rpc.testnet.chain.robinhood.com/",
-    // No public explorer found as of 2026-07: the obvious
-    // robinhoodchain-testnet.blockscout.com host 404s. Left unset rather than
-    // shipping a dead link — explorer-backed tools report this cleanly.
+    // Found in the docs-site JS bundle, not the documentation itself. An earlier
+    // guess at a robinhoodchain-testnet.blockscout.com host 404s, which is why this
+    // was briefly recorded as "no explorer" — verified live before being restored.
+    explorerUrl: "https://explorer.testnet.chain.robinhood.com",
+    explorerApiUrl: "https://explorer.testnet.chain.robinhood.com/api/v2",
     nativeSymbol: "ETH",
     nativeDecimals: 18,
     testnet: true,

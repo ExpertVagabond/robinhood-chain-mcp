@@ -12,6 +12,7 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 const USDG = "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168";
 const WHALE = "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73"; // WETH contract, holds balances
 const DEAD = "0x000000000000000000000000000000000000dEaD";
+const AAPL = "0xaF3D76f1834A1d425780943C99Ea8A608f8a93f9"; // canonical Robinhood Stock Token
 
 // name -> args. Anything omitted here is called with {}.
 const ARGS = {
@@ -99,6 +100,20 @@ const ARGS = {
     validBefore: "99999999999", nonce: "0x" + "66".repeat(32), signature: "0x" + "11".repeat(65),
   },
   x402_check_facilitator: {},
+  verify_stock_token: { token: AAPL },
+  stock_token_info: { token: AAPL },
+  stock_balance: { token: AAPL, address: DEAD },
+  check_corporate_action: { token: AAPL },
+  check_address_blocked: { address: DEAD },
+  stock_token_registry: {},
+  list_stock_tokens: { query: "AAPL", limit: 5 },
+  stock_token_terms: { token: AAPL },
+  uniswap_contracts: {},
+  uniswap_pool_id: { currency0: WHALE, currency1: USDG },
+  uniswap_pool_state: { currency0: WHALE, currency1: USDG, fee: 3000, tickSpacing: 60, decimals0: 18, decimals1: 6 },
+  uniswap_pool_liquidity: { poolId: "0x77c25b9386d47de62e0155c393696e9f43f7e6d036c6ca52f66735ccbb8808a7" },
+  uniswap_fee_growth: { poolId: "0x77c25b9386d47de62e0155c393696e9f43f7e6d036c6ca52f66735ccbb8808a7" },
+  uniswap_find_pool: { currency0: USDG, currency1: WHALE },
   x402_decode_payment_header: {
     header: Buffer.from(JSON.stringify({ x402Version: 2, scheme: "exact", network: "eip155:4663" })).toString("base64"),
   },
