@@ -26,6 +26,13 @@ import { registerContractTools } from "./tools/contract.js";
 import { registerTransactionTools } from "./tools/transaction.js";
 import { registerTokenTools } from "./tools/token.js";
 import { registerUsdgTools } from "./tools/usdg.js";
+import { registerArbitrumTools } from "./tools/arbitrum.js";
+import { registerUtilTools } from "./tools/utils.js";
+import { registerErc20Tools } from "./tools/erc20.js";
+import { registerNftTools } from "./tools/nft.js";
+import { registerEip3009Tools } from "./tools/eip3009.js";
+import { registerExplorerTools } from "./tools/explorer.js";
+import { registerX402Tools } from "./tools/x402.js";
 
 const network = resolveNetwork();
 const rpc = new RpcClient(network);
@@ -65,6 +72,13 @@ registerContractTools(register, rpc);
 registerTransactionTools(register, rpc, scout);
 registerTokenTools(register, rpc, scout);
 registerUsdgTools(register, rpc);
+registerArbitrumTools(register, rpc);
+registerUtilTools(register);
+registerErc20Tools(register, rpc);
+registerNftTools(register, rpc, scout);
+registerEip3009Tools(register, rpc);
+registerExplorerTools(register, rpc, scout);
+registerX402Tools(register, rpc);
 
 async function main() {
   const transport = new StdioServerTransport();
