@@ -2,7 +2,7 @@
 
 MCP server for **Robinhood Chain** — an Arbitrum Orbit L2 settling on Ethereum, fully EVM-compatible, gas paid in ETH.
 
-**24 tools**: JSON-RPC reads, explorer-indexed token discovery, EIP-3009/USDG tooling, and unsigned transaction builders.
+**85 tools**: JSON-RPC reads, Arbitrum Orbit precompiles, explorer-indexed discovery, ERC-20/721/1155, EIP-3009/EIP-2612 tooling, x402 payment helpers, offline encoding utilities, and unsigned transaction builders.
 
 **Read and build only.** This server never holds keys, never signs, and never broadcasts. Transaction and authorization tools return unsigned payloads for external signing.
 
@@ -73,12 +73,24 @@ verifyingContract=0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168
 
 ## Tools
 
-**Chain** — `chain_info`, `get_block`, `gas_price`, `estimate_gas`
-**Account** — `get_balance`, `get_nonce`, `is_contract`, `get_token_balance`, `list_token_holdings`
-**Contract** — `read_contract` (human-readable signatures), `raw_call` (reports revert selectors), `build_transaction`
-**Transaction** — `get_transaction`, `get_receipt`, `address_transactions`, `get_logs`
-**Token** — `list_tokens`, `token_info`, `known_assets`, `chain_stats`
-**USDG / EIP-3009** — `probe_token_capabilities`, `usdg_info`, `check_authorization`, `build_transfer_authorization`
+**Chain (4)** — `chain_info`, `get_block`, `gas_price`, `estimate_gas`
+**Arbitrum Orbit (12)** — `arb_block_number`, `block_number_context`, `arb_chain_id`, `arbos_version`, `arb_gas_prices`, `arb_l1_base_fee`, `arb_min_gas_price`, `arb_gas_accounting`, `arb_l1_pricing`, `estimate_l1_component`, `precompile_status`, `build_l2_to_l1_withdrawal`
+**Account (5)** — `get_balance`, `get_nonce`, `is_contract`, `get_token_balance`, `list_token_holdings`
+**Contract (3)** — `read_contract`, `raw_call`, `build_transaction`
+**Transaction (4)** — `get_transaction`, `get_receipt`, `address_transactions`, `get_logs`
+**ERC-20 (7)** — `token_metadata`, `token_allowance`, `multi_token_balance` (Multicall3), `build_token_transfer`, `build_token_approve`, `decode_transfer_log`, `token_transfer_history`
+**NFT (7)** — `nft_owner`, `nft_token_uri`, `nft_balance`, `nft_collection_info`, `erc1155_balance`, `detect_token_standard`, `address_nfts`
+**Token discovery (4)** — `list_tokens`, `token_info`, `known_assets`, `chain_stats`
+**Explorer (11)** — `address_info`, `address_token_transfers`, `address_internal_transactions`, `contract_source`, `contract_abi`, `explorer_search`, `token_holders`, `token_transfers`, `latest_blocks`, `block_transactions`, `verified_contracts`
+**EIP-3009 / EIP-2612 (12)** — `probe_token_capabilities`, `usdg_info`, `check_authorization`, `build_transfer_authorization`, `verify_authorization_signature`, `build_receive_authorization`, `build_cancel_authorization`, `build_permit`, `build_transfer_authorization_calldata`, `list_eip3009_assets`, `authorization_digest`, `verify_domain_separator`
+**x402 (5)** — `x402_network_id`, `x402_build_payment_requirements`, `x402_build_payment_payload`, `x402_check_facilitator`, `x402_decode_payment_header`
+**Offline utilities (11)** — `keccak_hash`, `function_selector`, `event_topic`, `checksum_address`, `encode_abi`, `decode_abi`, `decode_calldata`, `to_wei`, `from_wei`, `hex_convert`, `random_nonce`
+
+### Orbit specifics worth knowing
+
+`block_number_context` exists because of a real trap: **`eth_blockNumber` and the `block.number` a contract observes are different numbers on this chain** (~13.1M vs ~25.5M at time of writing). A contract reading `block.number` sees the L1 height, advancing at L1 pace. Deadlines computed from it move ~6x slower than you would expect from L2 block times.
+
+`precompile_status` probes each Arbitrum precompile with a real call rather than trusting that a canonical address implies a working precompile. On this chain ArbSys and ArbGasInfo respond; **ArbOwnerPublic and ArbWasm revert, so there is no Stylus support here.** Tools for those are deliberately absent rather than shipped broken.
 
 `chain_info` reports `chainIdMatchesConfig` — if an `ROBINHOOD_RPC_URL` override points at a different chain, you find out immediately instead of operating against the wrong network.
 
@@ -96,4 +108,6 @@ The Blockscout client retries 5xx with backoff (public explorer, rate-limited un
 
 ## Status
 
-v0.1.0. Not published. Verify-and-build only; no keys, no signing, no broadcasting.
+v0.1.0. Not published. Read-and-build only; no keys, no signing, no broadcasting.
+
+`test/smoke-all.mjs` calls **every registered tool** against live mainnet and fails the run on any unexpected error — a tool count means nothing if the tools do not work. Current: 82 pass, 3 expected-error (NFT calls against a non-NFT contract), 0 fail.
