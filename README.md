@@ -1,5 +1,9 @@
 # robinhood-chain-mcp
 
+[![CI](https://github.com/ExpertVagabond/robinhood-chain-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/ExpertVagabond/robinhood-chain-mcp/actions/workflows/ci.yml)
+[![Live chain canary](https://github.com/ExpertVagabond/robinhood-chain-mcp/actions/workflows/live.yml/badge.svg)](https://github.com/ExpertVagabond/robinhood-chain-mcp/actions/workflows/live.yml)
+[![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 MCP server for **Robinhood Chain** — an Arbitrum Orbit L2 settling on Ethereum, fully EVM-compatible, gas paid in ETH.
 
 **105 tools**: JSON-RPC reads, Arbitrum Orbit precompiles, explorer-indexed discovery, ERC-20/721/1155, Robinhood Stock Tokens, Uniswap v4, Chainlink price oracles, EIP-3009/EIP-2612 tooling, x402 payment helpers, offline encoding utilities, and unsigned transaction builders.
@@ -131,6 +135,13 @@ npm install
 npm run build
 npm run quality   # typecheck + live tests
 ```
+
+### CI split
+
+Two workflows, deliberately separated:
+
+- **`ci.yml`** gates every push — typecheck, build, dist shape, and an MCP handshake asserting the tool set is well-formed (count, unique names, description quality). Fully hermetic; no chain access.
+- **`live.yml`** runs daily on a schedule. These assert real on-chain state, so a failure means *the chain moved*, not the code — a USDG upgrade changing `DOMAIN_SEPARATOR`, the EIP-3009 probe going dark, a feed disappearing. Running them per-push would just produce red builds from RPC rate limits and weekend-stale equity feeds.
 
 Tests run against **live mainnet** — no mocks. They assert that the chain IDs still match, that USDG's `DOMAIN_SEPARATOR` hasn't drifted, that the capability probe still finds EIP-3009, and that a bytecode scan still wouldn't. A separate suite drives the server over a real MCP stdio handshake.
 
