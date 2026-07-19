@@ -114,6 +114,12 @@ const ARGS = {
   uniswap_pool_liquidity: { poolId: "0x77c25b9386d47de62e0155c393696e9f43f7e6d036c6ca52f66735ccbb8808a7" },
   uniswap_fee_growth: { poolId: "0x77c25b9386d47de62e0155c393696e9f43f7e6d036c6ca52f66735ccbb8808a7" },
   uniswap_find_pool: { currency0: USDG, currency1: WHALE },
+  price_feed_registry: {},
+  get_token_price: { token: WHALE },
+  get_stock_price: { ticker: "AAPL" },
+  read_price_feed: { feed: "0x4bDbb3150014c6Ab2C6D9347B0779c49015a2f3f" },
+  list_price_feeds: { query: "EACAggregatorProxy", limit: 6 },
+  check_price_freshness: { feed: "0x4bDbb3150014c6Ab2C6D9347B0779c49015a2f3f", maxAgeSeconds: 3600 },
   x402_decode_payment_header: {
     header: Buffer.from(JSON.stringify({ x402Version: 2, scheme: "exact", network: "eip155:4663" })).toString("base64"),
   },

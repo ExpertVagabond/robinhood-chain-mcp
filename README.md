@@ -2,7 +2,7 @@
 
 MCP server for **Robinhood Chain** — an Arbitrum Orbit L2 settling on Ethereum, fully EVM-compatible, gas paid in ETH.
 
-**99 tools**: JSON-RPC reads, Arbitrum Orbit precompiles, explorer-indexed discovery, ERC-20/721/1155, Robinhood Stock Tokens, Uniswap v4, EIP-3009/EIP-2612 tooling, x402 payment helpers, offline encoding utilities, and unsigned transaction builders.
+**105 tools**: JSON-RPC reads, Arbitrum Orbit precompiles, explorer-indexed discovery, ERC-20/721/1155, Robinhood Stock Tokens, Uniswap v4, Chainlink price oracles, EIP-3009/EIP-2612 tooling, x402 payment helpers, offline encoding utilities, and unsigned transaction builders.
 
 **Read and build only.** This server never holds keys, never signs, and never broadcasts. Transaction and authorization tools return unsigned payloads for external signing.
 
@@ -86,6 +86,7 @@ verifyingContract=0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168
 **x402 (5)** — `x402_network_id`, `x402_build_payment_requirements`, `x402_build_payment_payload`, `x402_check_facilitator`, `x402_decode_payment_header`
 **Robinhood Stock Tokens (8)** — `verify_stock_token`, `stock_token_info`, `stock_balance`, `check_corporate_action`, `check_address_blocked`, `stock_token_registry`, `list_stock_tokens`, `stock_token_terms`
 **Uniswap v4 (6)** — `uniswap_contracts`, `uniswap_pool_id`, `uniswap_pool_state`, `uniswap_pool_liquidity`, `uniswap_fee_growth`, `uniswap_find_pool`
+**Price oracles (6)** — `price_feed_registry`, `get_token_price`, `get_stock_price`, `read_price_feed`, `list_price_feeds`, `check_price_freshness`
 **Offline utilities (11)** — `keccak_hash`, `function_selector`, `event_topic`, `checksum_address`, `encode_abi`, `decode_abi`, `decode_calldata`, `to_wei`, `from_wei`, `hex_convert`, `random_nonce`
 
 ### Orbit specifics worth knowing
@@ -101,6 +102,19 @@ verifyingContract=0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168
 **Ticker squatting is rampant, and there is no registry to check against.** The explorer lists several contracts per ticker; Robinhood's docs warn that a matching ticker proves nothing but publish no canonical list. `uiMultiplier()` turns out to be a reliable discriminator — the genuine tokens implement it, the copies do not. `verify_stock_token("TSLA")` returns the real `Tesla • Robinhood Token` and separately lists the "TSLA CAT" impostors.
 
 The `AccessControlsRegistry` (`0xe10b6f6B...151b00`) was found by calling a token's own `ACCESS_CONTROLLED_REGISTRY()`, not from docs. It gates transfers via `isBlocked(address)` and doubles as the EIP-1967 beacon behind every Stock Token proxy — so it does *not* enumerate them.
+
+### Price oracles: three systems, easily confused
+
+**`PriceFeedRegistry`** (`0x4C5CE5…f846f`) maps a token address to a Chainlink feed — WETH resolves to `ETH / USD`. It does **not** cover Stock Tokens: `getTokenPrice` on one reverts `PriceFeedNotFound()`.
+
+**Stock prices are standalone aggregators**, discoverable only by their `description()` string, in two conventions — `Robinhood AAPL / USD` *and* `RHTSLA / USD`. Nothing on-chain links a Stock Token to its feed, so the mapping is by ticker, not address. Several proxies front the same underlying aggregator, so `get_stock_price` dedupes on `aggregator()`.
+
+**`PriceFeed`** (`0x4EE2F9…`) is a red herring: it has `endpoint`/`eid`/`estimateFee`, making it a **LayerZero messaging-fee oracle**, unrelated to asset prices.
+
+Two safety findings, both surfaced by the tools:
+
+- **Equity feeds go stale by design.** AAPL was last updated Friday 19:47 UTC and read 1.6 days old on a Sunday. That is correct — markets were closed — but it breaks both naive approaches: a crypto-style staleness threshold rejects every stock price outside trading hours, while an integration that ignores age serves a Friday close as a live quote. `check_price_freshness` classifies the feed as equity and judges accordingly.
+- **`sequencerUptimeFeed` is unset (`0x0`).** The registry supports Chainlink's L2 sequencer-uptime gating but has none configured, so no read is protected against post-downtime staleness. Reported by `price_feed_registry`.
 
 ### Uniswap v4
 
@@ -126,6 +140,6 @@ The Blockscout client retries 5xx with backoff (public explorer, rate-limited un
 
 v0.1.0. Not published. Read-and-build only; no keys, no signing, no broadcasting.
 
-`test/smoke-all.mjs` calls **every registered tool** against live mainnet and fails the run on any unexpected error — a tool count means nothing if the tools do not work. Current: 96 pass, 3 expected-error (NFT calls against a non-NFT contract), 0 fail.
+`test/smoke-all.mjs` calls **every registered tool** against live mainnet and fails the run on any unexpected error — a tool count means nothing if the tools do not work. Current: 102 pass, 3 expected-error (NFT calls against a non-NFT contract), 0 fail.
 
 The RPC client retries 429/5xx with backoff and distinguishes `TransportError` from `RpcError`. That distinction is load-bearing: capability probes read *reverts* as evidence, so a swallowed rate-limit would be reported as "this selector is absent" or "this is not a stock token" — an outage turned into a false claim about a contract.
