@@ -1,0 +1,36 @@
+# Live-chain canary.
+#
+# Deliberately NOT on push. These tests assert real on-chain state — prices, chain
+# IDs, USDG's EIP-712 domain — so a failure here means the CHAIN changed, not the
+# code. Running them per-push would produce red builds from RPC rate limits and
+# weekend-stale equity feeds, which says nothing about a diff.
+#
+# What this is actually watching for:
+#   - USDG upgraded and its DOMAIN_SEPARATOR moved (every stored signature breaks)
+#   - the EIP-3009 capability probe stops finding transferWithAuthorization
+#   - a chain ID changes, or an RPC/explorer host disappears
+name: Live chain canary
+
+on:
+  schedule:
+    - cron: "17 9 * * *" # daily, off the hour to avoid the stampede
+  workflow_dispatch:
+
+jobs:
+  live:
+    name: live mainnet assertions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+
+      - name: Live test suites
+        run: node --test test/live.test.ts test/mcp.test.ts
+
+      - name: Exercise every tool against mainnet
+        run: node test/smoke-all.mjs
