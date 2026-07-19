@@ -129,10 +129,26 @@ test("explorer returns tokens, and USDG is among them", async () => {
   assert.ok(symbols.includes("USDG"), `USDG missing from ${symbols.slice(0, 10)}`);
 });
 
-test("explorer-backed calls fail clearly on testnet rather than obscurely", async () => {
+test("testnet explorer is configured and live", async () => {
+  // This assertion was previously inverted: the testnet explorer was recorded as
+  // absent because a GUESSED Blockscout hostname 404'd. The real host was found in
+  // the docs-site JS bundle. A guessed URL returning 404 proves nothing.
   const testnetScout = new BlockscoutClient(NETWORKS.testnet);
-  assert.equal(testnetScout.available, false);
-  await assert.rejects(() => testnetScout.get("/tokens"), NoExplorerError);
+  assert.equal(testnetScout.available, true);
+  const stats = await testnetScout.get<Record<string, unknown>>("/stats");
+  assert.ok(stats, "testnet explorer should return stats");
+});
+
+test("a network without an explorer fails clearly rather than obscurely", async () => {
+  // Synthetic config: the NoExplorerError path must still be exercised even though
+  // every real network now has an explorer.
+  const noExplorer = new BlockscoutClient({
+    ...NETWORKS.testnet,
+    explorerUrl: undefined,
+    explorerApiUrl: undefined,
+  });
+  assert.equal(noExplorer.available, false);
+  await assert.rejects(() => noExplorer.get("/tokens"), NoExplorerError);
 });
 
 test("formatUnits does not lose precision on stablecoin amounts", () => {
