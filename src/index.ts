@@ -35,6 +35,7 @@ import { registerExplorerTools } from "./tools/explorer.js";
 import { registerX402Tools } from "./tools/x402.js";
 import { registerStockTokenTools } from "./tools/stocktokens.js";
 import { registerUniswapTools } from "./tools/uniswap.js";
+import { registerOracleTools } from "./tools/oracle.js";
 
 const network = resolveNetwork();
 const rpc = new RpcClient(network);
@@ -83,6 +84,7 @@ registerExplorerTools(register, rpc, scout);
 registerX402Tools(register, rpc);
 registerStockTokenTools(register, rpc, scout);
 registerUniswapTools(register, rpc);
+registerOracleTools(register, rpc, scout);
 
 async function main() {
   const transport = new StdioServerTransport();
