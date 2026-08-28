@@ -1,5 +1,6 @@
 {
   "name": "@purplesquirrel/robinhood-chain-mcp",
+  "author": "Matthew Karsten <matthewkarstenconnects@gmail.com>",
   "version": "0.1.0",
   "description": "MCP server for Robinhood Chain (Arbitrum Orbit L2, chainId 4663) — JSON-RPC reads, explorer-indexed token discovery, EIP-3009/USDG tooling, and unsigned transaction builders. Never holds keys.",
   "type": "module",
