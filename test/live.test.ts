@@ -10,7 +10,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { resolveNetwork, NETWORKS } from "../dist/networks.js";
 import { RpcClient, fromHex, formatUnits } from "../dist/rpc.js";
-import { BlockscoutClient, NoExplorerError } from "../dist/blockscout.js";
+import { BlockscoutClient, NoExplorerError, ExplorerBlockedError } from "../dist/blockscout.js";
 import { KNOWN_ASSETS, SELECTORS, resolveAsset } from "../dist/assets.js";
 
 const rpc = new RpcClient(NETWORKS.mainnet);
@@ -119,10 +119,22 @@ test("resolveAsset accepts symbol and address, case-insensitively", () => {
   assert.equal(resolveAsset("NOPE"), undefined);
 });
 
-test("explorer returns tokens, and USDG is among them", async () => {
-  const res = await scout.get<{ items?: Array<Record<string, unknown>> }>("/tokens", {
-    type: "ERC-20",
-  });
+test("explorer returns tokens, and USDG is among them", async (t) => {
+  // This canary exists to catch chain changes. Edge bot-protection turning us away is
+  // an access problem, so skip rather than report a false chain change (see the
+  // workflow header in .github/workflows/live.yml).
+  let res: { items?: Array<Record<string, unknown>> };
+  try {
+    res = await scout.get<{ items?: Array<Record<string, unknown>> }>("/tokens", {
+      type: "ERC-20",
+    });
+  } catch (err) {
+    if (err instanceof ExplorerBlockedError) {
+      t.skip(err.message);
+      return;
+    }
+    throw err;
+  }
   const items = res.items ?? [];
   assert.ok(items.length > 0, "expected tokens");
   const symbols = items.map((t) => String(t.symbol ?? "").toUpperCase());
