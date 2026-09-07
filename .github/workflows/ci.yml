@@ -48,3 +48,7 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: node test/ci-list-tools.mjs
+      # Guards the live canary's error classifier. Hermetic — no chain access.
+      # A pattern that matched too much would file real chain drift as
+      # "upstream" and leave the canary permanently green.
+      - run: node --test test/upstream-error.test.mjs

@@ -8,6 +8,7 @@
  */
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { isUpstreamError, UPSTREAM_ABORT_RATIO } from "./upstream-error.mjs";
 
 const USDG = "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168";
 const WHALE = "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73"; // WETH contract, holds balances
@@ -130,33 +131,64 @@ const client = new Client({ name: "smoke", version: "0" }, { capabilities: {} })
 await client.connect(transport);
 const { tools } = await client.listTools();
 
-const pass = [], fail = [], expected = [];
+// This canary exists to catch the CHAIN changing under us — a moved
+// DOMAIN_SEPARATOR, a vanished capability, a new chain ID. An explorer or RPC
+// returning 5xx/429 is the provider having a bad day, which proves nothing
+// either way and must not turn the whole run red: that is what happened here
+// daily from 2026-08-23, when Blockscout began serving HTTP 500 for a single
+// address and buried the signal under a two-week wall of noise.
+//
+// Widespread upstream failure is different — if most of the surface is
+// unreachable the run made no assertion at all, so it still exits non-zero
+// rather than reporting a green canary that checked nothing.
+// Classifier and threshold live in ./upstream-error.mjs so the hermetic CI
+// job can assert on them without touching the chain.
+const pass = [], fail = [], expected = [], upstream = [];
 for (const t of tools) {
   const raw = ARGS[t.name] ?? {};
   const { expectError, ...args } = raw;
+  const classify = (text) => {
+    if (expectError) return expected;
+    return isUpstreamError(text) ? upstream : fail;
+  };
   try {
     const res = await client.callTool({ name: t.name, arguments: args });
     const text = (res.content?.[0]?.text ?? "").slice(0, 100).replace(/\s+/g, " ");
     if (res.isError) {
-      (expectError ? expected : fail).push([t.name, text]);
+      classify(text).push([t.name, text]);
     } else {
       pass.push([t.name, text]);
     }
   } catch (e) {
-    (expectError ? expected : fail).push([t.name, String(e.message).slice(0, 100)]);
+    const text = String(e.message).slice(0, 100);
+    classify(text).push([t.name, text]);
   }
 }
 
+const upstreamRatio = tools.length ? upstream.length / tools.length : 0;
+const upstreamOutage = upstreamRatio > UPSTREAM_ABORT_RATIO;
+
 console.log(`\n${"=".repeat(78)}`);
-console.log(`PASS ${pass.length}  |  EXPECTED-ERROR ${expected.length}  |  FAIL ${fail.length}  |  TOTAL ${tools.length}`);
+console.log(
+  `PASS ${pass.length}  |  EXPECTED-ERROR ${expected.length}  |  UPSTREAM ${upstream.length}  |  FAIL ${fail.length}  |  TOTAL ${tools.length}`
+);
 console.log("=".repeat(78));
 if (fail.length) {
-  console.log("\nFAILURES:");
+  console.log("\nFAILURES (chain or code changed — investigate):");
   for (const [n, e] of fail) console.log(`  ✖ ${n.padEnd(38)} ${e}`);
 } else {
   console.log("\nNo unexpected failures.");
 }
+if (upstream.length) {
+  console.log("\nUPSTREAM UNAVAILABLE (provider-side, not a chain change):");
+  for (const [n, e] of upstream) console.log(`  ⚠ ${n.padEnd(38)} ${e}`);
+  if (upstreamOutage) {
+    console.log(
+      `\n  ${Math.round(upstreamRatio * 100)}% of tools were unreachable — this run asserted nothing about the chain.`
+    );
+  }
+}
 console.log("\nSample output:");
 for (const [n, t] of pass.slice(0, 6)) console.log(`  ✔ ${n.padEnd(34)} ${t.slice(0, 62)}`);
 await transport.close();
-process.exit(fail.length ? 1 : 0);
+process.exit(fail.length || upstreamOutage ? 1 : 0);
