@@ -1,0 +1,74 @@
+name: Publish
+
+# 0.1.0 shipped to npm with no dist/ directory: three files, no bin target, so
+# the documented `npm install -g` produced a package that could not start
+# (issue #1). The cause was a hand publish -- npm's `prepare` hook is the only
+# thing that builds dist/, and it is skipped entirely when ignore-scripts is set
+# in the publisher's npm config, which it was.
+#
+# This workflow removes the hand-publish path. The build here is an explicit
+# workflow step, not an npm lifecycle script, so no npm config can silently skip
+# it, and the tarball is inspected for its bin target before anything is pushed
+# to the registry.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Verify the tarball contains its bin target
+        run: |
+          BIN=$(node -p "require('./package.json').bin['robinhood-chain-mcp']")
+          echo "bin target: $BIN"
+          npm pack --dry-run --json > /tmp/pack.json
+          node -e "
+            const bin = process.argv[1];
+            const files = require('/tmp/pack.json')[0].files.map(f => f.path);
+            if (!files.includes(bin)) {
+              console.error('Refusing to publish: ' + bin + ' is not in the tarball.');
+              console.error('Tarball contains ' + files.length + ' files: ' + files.slice(0, 10).join(', '));
+              process.exit(1);
+            }
+            console.log('OK: ' + bin + ' present, ' + files.length + ' files total.');
+          " "$BIN"
+
+      - name: Check credentials
+        id: creds
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -n "$NPM_TOKEN" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::warning title=Publish skipped::NPM_TOKEN is not set on this repository. Add the secret to enable publishing."
+          fi
+
+      - name: Publish to npm
+        if: steps.creds.outputs.ready == 'true'
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

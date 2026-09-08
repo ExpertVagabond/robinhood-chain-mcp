@@ -2,7 +2,7 @@
   "publishConfig": { "access": "public" },
   "name": "@purplesquirrel/robinhood-chain-mcp",
   "author": "Matthew Karsten",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "MCP server for Robinhood Chain (Arbitrum Orbit L2, chainId 4663) — JSON-RPC reads, explorer-indexed token discovery, EIP-3009/USDG tooling, and unsigned transaction builders. Never holds keys.",
   "type": "module",
   "bin": {
@@ -14,6 +14,7 @@
   "keywords": ["mcp", "robinhood-chain", "arbitrum-orbit", "evm", "eip-3009", "usdg"],
   "scripts": {
     "build": "tsc",
+    "prepare": "npm run build",
     "dev": "tsc --watch",
     "start": "node dist/index.js",
     "type-check": "tsc --noEmit",
